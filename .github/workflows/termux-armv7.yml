@@ -1,0 +1,65 @@
+# .github/workflows/build-termux-armv7.yml
+name: Build for Termux (ARMv7)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:  # 允许手动触发
+
+env:
+  CARGO_TERM_COLOR: always
+  # 为 Android ARMv7 设置目标三元组
+  TARGET: armv7-linux-androideabi
+  # Android API level 27 对应 Android 8.1
+  ANDROID_API_LEVEL: 27
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # --- 1. 设置 Rust ---
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ env.TARGET }}
+
+    # --- 2. 安装 Android NDK ---
+    - name: Install Android NDK
+      run: |
+        wget -q https://dl.google.com/android/repository/android-ndk-r27c-linux.zip
+        unzip -q android-ndk-r27c-linux.zip
+        echo "$PWD/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
+        # 设置 NDK 环境变量
+        echo "ANDROID_NDK_HOME=$PWD/android-ndk-r27c" >> $GITHUB_ENV
+
+    # --- 3. 配置 Cargo 交叉编译链接器 ---
+    - name: Setup Cargo config for cross-compilation
+      run: |
+        mkdir -p .cargo
+        cat > .cargo/config.toml << 'EOF'
+        [target.armv7-linux-androideabi]
+        linker = "armv7a-linux-androideabi${{ env.ANDROID_API_LEVEL }}-clang"
+        ar = "llvm-ar"
+        EOF
+
+    # --- 4. 构建项目 ---
+    - name: Build for ARMv7 Android
+      run: |
+        cargo build --release --target ${{ env.TARGET }}
+
+    # --- 5. 查看构建产物 ---
+    - name: List build artifacts
+      run: |
+        ls -la target/${{ env.TARGET }}/release/
+
+    # --- 6. 上传构建产物 (方便下载) ---
+    - name: Upload binary artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ds-free-api-android-armv7
+        path: target/${{ env.TARGET }}/release/ds-free-api
