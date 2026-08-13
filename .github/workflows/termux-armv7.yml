@@ -13,12 +13,14 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    # -------------------- Rust --------------------
     - name: نصب Rust
       uses: dtolnay/rust-toolchain@stable
 
     - name: نصب target ARMv7
       run: rustup target add ${{ env.TARGET }}
 
+    # -------------------- Android NDK --------------------
     - name: نصب Android NDK
       run: |
         wget -q https://dl.google.com/android/repository/android-ndk-r27c-linux.zip
@@ -41,10 +43,26 @@ jobs:
         ar = "llvm-ar"
         EOF
 
+    # -------------------- ساخت فرانت‌اند (پنل مدیریت) --------------------
+    - name: نصب Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: ساخت فایل‌های پنل مدیریت
+      run: |
+        cd web
+        npm install
+        npm run build
+        cd ..
+      # این کار پوشه web/dist/ را ایجاد می‌کند
+
+    # -------------------- کامپایل Rust --------------------
     - name: کامپایل پروژه
       run: cargo build --release --target ${{ env.TARGET }}
 
-    - name: آپلود خروجی
+    # -------------------- آپلود خروجی --------------------
+    - name: آپلود فایل باینری
       uses: actions/upload-artifact@v4
       with:
         name: ds-free-api-android-armv7
