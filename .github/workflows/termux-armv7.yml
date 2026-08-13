@@ -1,62 +1,51 @@
-name: Build for Termux (ARMv7)
+name: ساخت برای Termux (ARMv7)
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
   workflow_dispatch:
 
 env:
-  CARGO_TERM_COLOR: always
   TARGET: armv7-linux-androideabi
   ANDROID_API_LEVEL: 27
-  NDK_VERSION: r27c
 
 jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-    - name: Install Rust toolchain
+    - name: نصب Rust
       uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: ${{ env.TARGET }}
 
-    - name: Ensure target is installed
+    - name: نصب target ARMv7
       run: rustup target add ${{ env.TARGET }}
 
-    - name: Install Android NDK
+    - name: نصب Android NDK
       run: |
-        wget -q https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip
-        unzip -q android-ndk-${NDK_VERSION}-linux.zip
-        echo "$PWD/android-ndk-${NDK_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
-        echo "ANDROID_NDK_HOME=$PWD/android-ndk-${NDK_VERSION}" >> $GITHUB_ENV
+        wget -q https://dl.google.com/android/repository/android-ndk-r27c-linux.zip
+        unzip -q android-ndk-r27c-linux.zip
+        echo "$PWD/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
+        echo "ANDROID_NDK_HOME=$PWD/android-ndk-r27c" >> $GITHUB_ENV
 
-    - name: Setup Cargo config for cross-compilation
+    - name: تنظیم متغیرهای کامپایلر
+      run: |
+        echo "CC_armv7_linux_androideabi=armv7a-linux-androideabi${{ env.ANDROID_API_LEVEL }}-clang" >> $GITHUB_ENV
+        echo "CXX_armv7_linux_androideabi=armv7a-linux-androideabi${{ env.ANDROID_API_LEVEL }}-clang++" >> $GITHUB_ENV
+        echo "AR_armv7_linux_androideabi=llvm-ar" >> $GITHUB_ENV
+
+    - name: تنظیم فایل کانفیگ کارگو (لینکر)
       run: |
         mkdir -p .cargo
-        cat > .cargo/config.toml << EOF
-        [target.${TARGET}]
-        linker = "armv7a-linux-androideabi${ANDROID_API_LEVEL}-clang"
+        cat > .cargo/config.toml << 'EOF'
+        [target.armv7-linux-androideabi]
+        linker = "armv7a-linux-androideabi${{ env.ANDROID_API_LEVEL }}-clang"
         ar = "llvm-ar"
         EOF
 
-        echo "CC_${TARGET}=armv7a-linux-androideabi${ANDROID_API_LEVEL}-clang" >> $GITHUB_ENV
-        echo "CXX_${TARGET}=armv7a-linux-androideabi${ANDROID_API_LEVEL}-clang++" >> $GITHUB_ENV
-        echo "AR_${TARGET}=llvm-ar" >> $GITHUB_ENV
+    - name: کامپایل پروژه
+      run: cargo build --release --target ${{ env.TARGET }}
 
-    - name: Build for ARMv7 Android
-      run: cargo build --release --target ${TARGET}
-
-    - name: List build artifacts
-      run: ls -la target/${TARGET}/release/
-
-    - name: Upload binary artifact
+    - name: آپلود خروجی
       uses: actions/upload-artifact@v4
       with:
         name: ds-free-api-android-armv7
         path: target/${{ env.TARGET }}/release/ds-free-api
-        if-no-files-found: warn
